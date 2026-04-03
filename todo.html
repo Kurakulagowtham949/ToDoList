@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <link rel="stylesheet" href="todo.css">
+</head>
+<body>
+    <div class="container">
+        <h2>To-Do List</h2>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+            <input type="text" id="new-task" placeholder="Add a new task...">
+            <input type="date" id="due-date" style="flex:1;">
+            <select id="priority" style="flex:1;">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+            </select>
+            <button id="add-btn">Add</button>
+        </div>
+        <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+            <button id="filter-all">All</button>
+            <button id="filter-active">Active</button>
+            <button id="filter-completed">Completed</button>
+        </div>
+        <ul id="task-list"></ul>
+    </div>
+    <script>
+        const addBtn = document.getElementById('add-btn');
+        const newTaskInput = document.getElementById('new-task');
+        const dueDateInput = document.getElementById('due-date');
+        const priorityInput = document.getElementById('priority');
+        const taskList = document.getElementById('task-list');
+        const filterAll = document.getElementById('filter-all');
+        const filterActive = document.getElementById('filter-active');
+        const filterCompleted = document.getElementById('filter-completed');
+
+        let tasks = [];
+        let filter = 'all';
+
+        async function fetchTasks() {
+            const res = await fetch('http://127.0.0.1:5000/api/tasks');
+            tasks = await res.json();
+            renderTasks();
+        }
+
+        async function addTask() {
+            const taskText = newTaskInput.value.trim();
+            const dueDate = dueDateInput.value;
+            const priority = priorityInput.value;
+            if (taskText === '') return;
+            await fetch('http://127.0.0.1:5000/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: taskText, completed: false, dueDate, priority })
+            });
+            newTaskInput.value = '';
+            dueDateInput.value = '';
+            priorityInput.value = 'low';
+            fetchTasks();
+        }
+
+        async function updateTask(id, data) {
+            await fetch(`http://127.0.0.1:5000/api/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            fetchTasks();
+        }
+
+        async function deleteTask(id) {
+            await fetch(`http://127.0.0.1:5000/api/tasks/${id}`, { method: 'DELETE' });
+            fetchTasks();
+        }
+
+        function renderTasks() {
+            taskList.innerHTML = '';
+            let filtered = tasks;
+            if (filter === 'active') filtered = tasks.filter(t => !t.completed);
+            if (filter === 'completed') filtered = tasks.filter(t => t.completed);
+            filtered.forEach((task) => {
+                const li = document.createElement('li');
+                if (task.completed) li.classList.add('completed');
+                let prioColor = {low:'#28a745', medium:'#ffc107', high:'#dc3545'}[task.priority];
+                const span = document.createElement('span');
+                span.innerHTML = `<b style="color:${prioColor}">[${task.priority.charAt(0).toUpperCase()+task.priority.slice(1)}]</b> ` +
+                    task.text + (task.dueDate ? ` <small style="color:#888">(Due: ${task.dueDate})</small>` : '');
+                span.style.flex = '1';
+                span.style.cursor = 'pointer';
+                span.onclick = function() {
+                    updateTask(task.id, { completed: !task.completed });
+                };
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Edit';
+                editBtn.style.marginRight = '6px';
+                editBtn.onclick = function() {
+                    const newText = prompt('Edit task:', task.text);
+                    if (newText !== null && newText.trim() !== '') {
+                        updateTask(task.id, { text: newText.trim() });
+                    }
+                };
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Delete';
+                delBtn.className = 'delete-btn';
+                delBtn.onclick = function() {
+                    deleteTask(task.id);
+                };
+                li.appendChild(span);
+                li.appendChild(editBtn);
+                li.appendChild(delBtn);
+                taskList.appendChild(li);
+            });
+        }
+
+        addBtn.onclick = addTask;
+        newTaskInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') addTask();
+        });
+        filterAll.onclick = function() { filter = 'all'; renderTasks(); };
+        filterActive.onclick = function() { filter = 'active'; renderTasks(); };
+        filterCompleted.onclick = function() { filter = 'completed'; renderTasks(); };
+
+        fetchTasks();
+    </script>
+</body>
+</html>
